@@ -3,6 +3,7 @@ from django.contrib.auth.models import AbstractUser  # mM* - import form
 
 # Create your models here.
 
+# 1. User Model: 
 class User(AbstractUser):
     ROLE_CHOICES = [
         ("AD", "Admin"),
@@ -22,4 +23,7 @@ class User(AbstractUser):
     address = models.CharField(max_length=50, blank = True, null = True)
     photo = models.ImageField(upload_to = 'profile_pic/', blank = True, null = True)
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES, blank=True, null = True)
+    
+    def __str__(self):
+        return (f"{self.username} ({self.role})")
     

@@ -38,8 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
      
-    # installed apps: 
-    'lms', 'users',
+    # installed apps:
+    'lms', 'users', 'rest_framework', 'rest_framework.authtoken'
 ]
 
 MIDDLEWARE = [
@@ -77,8 +77,12 @@ WSGI_APPLICATION = 'learning.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'lms_v2',
+        'USER': 'postgres',
+        'PASSWORD': 123,
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
@@ -120,8 +124,16 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 
+# Django REST Framework
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+}
+
+
 # ________________________________________________________________________________________________
 
 
 # custom user: 
-AUTH_USER_MODEL = 'users.User' # d - this is 100% correct 
+AUTH_USER_MODEL = 'users.User' 
