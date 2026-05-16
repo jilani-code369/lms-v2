@@ -11,11 +11,11 @@ class Course(models.Model):
         ("IN", "Intermediate"),
         ("AD", "Advanced")
     ]
-    instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete = models.SET_NULL, null = True)  # dk - import the 'django.conf import settings', use 'settings.AUTH_USER_MODEL'
+    instructor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete = models.PROTECT, limit_choices_to={'role': 'IN'})  # dk - import the 'django.conf import settings', use 'settings.AUTH_USER_MODEL'
     course_image = models.ImageField(upload_to='course_img/', blank = True, null = True)
     title = models.CharField(max_length = 50)
-    description = models.TextField(blank=True, null = True)
-    price = models.DecimalField(max_digits = 10, decimal_places = 2, blank=True, null = True)  # dk - use "DecimalField with 'max_digits' and 'decimal_places' attributes' "
+    description = models.TextField()
+    price = models.DecimalField(max_digits = 10, decimal_places = 2)  # dk - use "DecimalField with 'max_digits' and 'decimal_places' attributes' "
     difficulty_level = models.CharField(max_length=2, choices = DIFFICULTY_CHOICES, default = 'BG')
     created_at = models.DateTimeField(auto_now_add = True) # record the date and time on creation 
     updated_at = models.DateTimeField(auto_now = True)  # update the date/time on every update 
@@ -67,6 +67,9 @@ class Submission(models.Model):
 
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return (f"{self.assignment.id} . {self.assignment.title} - ({self.assignment.course.title}) ({self.student.username}) marks: {self.assignment.total_marks}")
 
 
 # 6. Evaluation
@@ -95,7 +98,7 @@ class Sponsorship(models.Model):
     
     sponsor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete= models.PROTECT, related_name='sponsored_courses')
     organization_name = models.CharField(max_length = 50)
-    student = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete = models.PROTECT, related_name='sponsorship_details')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete = models.PROTECT, related_name='sponsorship_details')
     course = models.ForeignKey(Course, on_delete = models.PROTECT)  #d amount = models.PositiveIntegerField()
     status = models.CharField(max_length = 2, choices = STATUS_CHOICES, default = "PN")
 

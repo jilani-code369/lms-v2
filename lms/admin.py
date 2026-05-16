@@ -54,7 +54,7 @@ class SponsorshipAdmin(admin.ModelAdmin):
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    list_display = ["id", "sender", "receiver", "type", "is_read", "created_at"]
+    list_display = ["id", "sender", "receiver","message", "type", "is_read", "created_at"]
     list_display_links = ["id", "sender"]
     list_filter = ["type", "is_read", "created_at"]
     search_fields = ["sender__username", "receiver__username", "message"]

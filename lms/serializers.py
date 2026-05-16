@@ -2,6 +2,7 @@
 from rest_framework import serializers
 from .models import *
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -9,21 +10,27 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta: 
         model = User
-        fields = ['username', 'password', 'role', 'phone_no', 'address', 'photo', 'gender']
+        fields = ['id', 'username', 'password', 'role', 'phone_no', 'address', 'photo', 'gender']
         extra_kwargs = {
             'password': {'write_only': True, 'required': False}
         }
 
     def update(self, instance, validated_data):
-        
-        # pop the password out of the data so it's not saved as plain text
         password = validated_data.pop('password', None)
         
-        # update the other fields (username, email, etc.)
+        # 1. Get the new role from data (if provided)
+        new_role = validated_data.get('role')
+        request = self.context.get('request')
+
+        # 2. Check if the role is present AND if it actually changed
+        if new_role is not None and new_role != instance.role:
+            if request and request.user.is_authenticated and request.user.role != 'AD':
+                raise serializers.ValidationError({"role": "Only admin can change user roles."})
+        
+        # Update other fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         
-        # if a password was provided, hash it correctly
         if password:
             instance.set_password(password)
             
@@ -37,6 +44,15 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = '__all__'
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
+
+        if request and request.user.is_authenticated and request.user.role == 'IN':
+            fields.pop('instructor', None)
+
+        return fields
 
     def validate_title(self, value):
         course = Course.objects.filter(title__iexact=value)
@@ -58,9 +74,33 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         model = Enrollment
         fields = '__all__'
 
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
+
+        if request and request.user.is_authenticated:
+            if request.user.role == 'ST':
+                fields.pop('student', None)
+                if request.method in ['POST', 'PUT', 'PATCH']:
+                    fields.pop('status', None)
+                    fields.pop('progress', None)
+            elif request.user.role == 'IN' and request.method in ['PUT', 'PATCH']:
+                fields = {
+                    name: field for name, field in fields.items()
+                    if name in ['status', 'progress']
+                }
+            elif 'student' in fields:
+                fields['student'].queryset = User.objects.filter(role='ST')
+
+        return fields
+
     def validate(self, attrs):
         student = attrs.get('student', getattr(self.instance, 'student', None))
+        request = self.context.get('request')
         course = attrs.get('course', getattr(self.instance, 'course', None))
+
+        if student is None and request and request.user.role == 'ST':
+            student = request.user
 
         enrollment = Enrollment.objects.filter(student=student, course=course)
 
@@ -81,19 +121,20 @@ class AssignmentSerializer(serializers.ModelSerializer):
         model = Assignment
         fields = '__all__'
 
-    def validate(self, attrs):
-        course = attrs.get('course', getattr(self.instance, 'course', None))
-        title = attrs.get('title', getattr(self.instance, 'title', None))
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
 
-        assignment = Assignment.objects.filter(course=course, title__iexact=title)
+        if request and request.user.is_authenticated and request.user.role == 'IN':
+            fields['course'].queryset = Course.objects.filter(instructor_id=request.user.id)
 
-        if self.instance:
-            assignment = assignment.exclude(id=self.instance.id)
+        return fields
 
-        if assignment.exists():
-            raise serializers.ValidationError({"detail": "Assignment already exists for this course."})
+    def validate_deadline(self, value):
+        if value < timezone.localdate():
+            raise serializers.ValidationError("Deadline cannot be in the past.")
 
-        return attrs
+        return value
 
 
 
@@ -103,6 +144,18 @@ class SubmissionSerializer(serializers.ModelSerializer):
         model = Submission
         fields = '__all__'
         read_only_fields = ['student']
+
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
+
+        if request and request.user.is_authenticated and request.user.role == 'ST':
+            # Filter assignments to show only those from courses the student is enrolled in
+            fields['assignment'].queryset = Assignment.objects.filter(
+                course__enrollment__student=request.user
+            ).distinct()
+
+        return fields
 
     def validate(self, attrs):
         assignment = attrs.get('assignment', getattr(self.instance, 'assignment', None))
@@ -129,16 +182,34 @@ class EvaluationSerializer(serializers.ModelSerializer):
         model = Evaluation
         fields = '__all__'
 
+    def get_fields(self):
+        fields = super().get_fields()
+        request = self.context.get('request')
+
+        if request and request.user.is_authenticated and request.user.role == 'IN':
+            # Filter submissions to show only those from instructor's own courses
+            fields['submission'].queryset = Submission.objects.filter(
+                assignment__course__instructor=request.user
+            )
+
+        return fields
+
     def validate(self, attrs):
         submission = attrs.get('submission', getattr(self.instance, 'submission', None))
+        marks_obtained = attrs.get('marks_obtained', getattr(self.instance, 'marks_obtained', None))
 
-        evaluation = Evaluation.objects.filter(submission=submission)
+        # Only check for duplicate evaluation during creation, not update
+        if not self.instance:
+            evaluation = Evaluation.objects.filter(submission=submission)
+            if evaluation.exists():
+                raise serializers.ValidationError({"submission": "evaluation with this submission already exists."})
 
-        if self.instance:
-            evaluation = evaluation.exclude(id=self.instance.id)
-
-        if evaluation.exists():
-            raise serializers.ValidationError({"detail": "Submission already has an evaluation."})
+        # Validate marks don't exceed total marks
+        if marks_obtained is not None and submission:
+            if marks_obtained > submission.assignment.total_marks:
+                raise serializers.ValidationError({
+                    "marks_obtained": f"Marks obtained ({marks_obtained}) cannot exceed total marks ({submission.assignment.total_marks})."
+                })
 
         return attrs
  
@@ -146,6 +217,8 @@ class EvaluationSerializer(serializers.ModelSerializer):
 
 # 7. Sponsorship serialzer:
 class SponsorshipSerializer(serializers.ModelSerializer):
+    student = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(role='ST'))
+    
     class Meta:
         model = Sponsorship
         fields = '__all__'
@@ -153,14 +226,24 @@ class SponsorshipSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         student = attrs.get('student', getattr(self.instance, 'student', None))
+        course = attrs.get('course', getattr(self.instance, 'course', None))
 
-        sponsorship = Sponsorship.objects.filter(student=student)
+        # Check for duplicate sponsorship only if same student AND same course
+        sponsorship = Sponsorship.objects.filter(student=student, course=course)
 
         if self.instance:
             sponsorship = sponsorship.exclude(id=self.instance.id)
 
         if sponsorship.exists():
-            raise serializers.ValidationError({"detail": "Student already has a sponsorship."})
+            raise serializers.ValidationError({"student": f"Student {student.username} already has sponsorship in this course ({course.title})."})
+
+        # Validate student is enrolled in the selected course
+        if student and course:
+            enrollment = Enrollment.objects.filter(student=student, course=course)
+            if not enrollment.exists():
+                raise serializers.ValidationError({
+                    "detail": f"Student {student.username} is not enrolled in course {course.title}."
+                })
 
         return attrs
 
@@ -170,4 +253,6 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = '__all__'
+
+
 

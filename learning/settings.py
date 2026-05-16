@@ -39,7 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
      
     # installed apps:
-    'lms', 'users', 'rest_framework', 'rest_framework.authtoken'
+    'lms', 'users', 'rest_framework', 'rest_framework.authtoken', 'drf_spectacular', 'django_filters',
 ]
 
 MIDDLEWARE = [
@@ -137,3 +137,25 @@ REST_FRAMEWORK = {
 
 # custom user: 
 AUTH_USER_MODEL = 'users.User' 
+
+
+
+
+
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_USE_TLS = True
+EMAIL_PORT = 587
+EMAIL_HOST_USER = 'dearjinni44@gmail.com'
+EMAIL_HOST_PASSWORD = 'twpfchpsijtkjzrd'
+
+
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'LMS',
+    'DESCRIPTION': 'This is a learning management system API',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    # OTHER SETTINGS
+}

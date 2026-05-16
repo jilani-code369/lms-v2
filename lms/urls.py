@@ -10,8 +10,10 @@ router.register('submission',SubmissionView, basename='submission')
 router.register('evaluation',EvaluationView, basename='evaluation')
 router.register('sponsorship',SponsorshipView, basename='sponsorship')
 router.register('notification',NotificationView, basename='notification')
-router.register('manage_user',UserView, basename='manage_user')
+
+router.register('profile',UserView, basename='profile')
 
 urlpatterns = [
-  
-]+router.urls
+    path('admin-dashboard/', admin_dashboard, name='admin-dashboard'),
+    path('sponsor-dashboard/', sponsor_dashboard, name='sponsor-dashboard'),
+] + router.urls
