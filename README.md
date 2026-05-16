@@ -47,15 +47,3 @@ The project has four different types of users, and each has its own permissions 
 * **Database:** PostgreSQL
 
 ---
-
-## 🏁 How to Run the Project Locally
-
-### Prerequisites
-Make sure you have Python installed on your computer.
-
-### Setup Steps
-
-1. **Clone this repository to your computer:**
-   ```bash
-   https://github.com/jilani-code369/lms-v2.git
-   cd lms_v2
